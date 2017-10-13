@@ -1,0 +1,38 @@
+---
+- name: Create MySQL database for yii
+  mysql_db: name=yii state=present
+
+- name: Create MySQL user for yii
+  mysql_user: name=yii password=yii priv=*.*:ALL state=present
+
+- name: Install composer
+  get_url: url=https://getcomposer.org/composer.phar dest=/usr/local/bin/composer mode=0755
+
+- name: Install Yii
+  shell: composer global require "fxp/composer-asset-plugin:^1.2.0"
+  shell: composer config -g github-oauth.github.com a94c477eb0359defed882ecc35cc2a38ca835387
+  shell: composer create-project --prefer-dist yiisoft/yii2-app-basic {{ document_root }}/yii
+  become: true
+  become_user: "{{ www_user }}"
+
+- name: Copy across new php-fpm pool config for yii
+  template:
+    src=php-fpm.conf.j2
+    dest=/etc/php/{{ php_version }}/fpm/pool.d/yii.conf
+  notify:
+    - restart php-fpm
+
+- name: Copy across new virtual host for yii
+  template:
+    src=nginx.conf.j2
+    dest=/etc/nginx/sites-available/yii.conf
+  notify:
+    - restart nginx
+
+- name: Enable new vagrant virtual host for yii
+  file:
+    src=/etc/nginx/sites-available/yii.conf
+    dest=/etc/nginx/sites-enabled/yii.conf
+    state=link
+  notify:
+    - restart nginx
